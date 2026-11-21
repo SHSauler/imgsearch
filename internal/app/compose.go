@@ -12,6 +12,7 @@ import (
 	"imgsearch/internal/jobs"
 	"imgsearch/internal/live"
 	"imgsearch/internal/mediastatus"
+	"imgsearch/internal/people"
 	"imgsearch/internal/search"
 	"imgsearch/internal/settings"
 	"imgsearch/internal/stats"
@@ -176,6 +177,11 @@ func NewRuntime(opts RuntimeOptions) (*Runtime, error) {
 	collectionHandler := collections.NewHandler(&collections.Handler{DB: opts.Data.DB, ModelID: opts.ModelID})
 	mux.Handle("/api/collections", collectionHandler)
 	mux.Handle("/api/collections/", collectionHandler)
+	peopleHandler := people.NewHandler(&people.Handler{DB: opts.Data.DB, ModelID: opts.ModelID})
+	mux.Handle("/api/people", peopleHandler)
+	mux.Handle("/api/people/", peopleHandler)
+	mux.Handle("/api/faces", peopleHandler)
+	mux.Handle("/api/faces/", peopleHandler)
 	mux.Handle("/api/stats", stats.NewHandler(&stats.Handler{DB: opts.Data.DB, ModelID: opts.ModelID, Capabilities: capabilities}))
 	mux.Handle("/api/media/status", mediastatus.NewHandler(&mediastatus.Handler{DB: opts.Data.DB, ModelID: opts.ModelID}))
 	mux.Handle("/api/duplicates", images.NewDuplicatesHandler(&images.Handler{DB: opts.Data.DB, ModelID: opts.ModelID, DataDir: opts.DataDir}))
