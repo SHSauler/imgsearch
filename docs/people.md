@@ -37,17 +37,22 @@ All routes use the existing `/api/` authentication and JSON error format.
 Face creation belongs to the background detection worker (planned); the API
 only clusters, corrects, and reads.
 
-## Pipeline (worker: done, models: planned)
+## Pipeline (done, behind `-enable-faces` + ONNX Runtime)
 
-Detect (multi-face, e.g. SCRFD-class) → align → identity embedding (ArcFace
-class, 512-d) → greedy nearest-neighbor match to existing persons above a
-cosine threshold, else new `Person N`. Implemented as `index_faces` jobs
-claimed after embedding (`internal/worker`, `Queue.FaceDetector`), enqueued
-on upload and for sampled video frames when enabled, with
-`db.EnsureFaceJobsForModel` for backfill; matching lives in
-`people.AssignDetections` behind the `people.Detector` interface so the
-worker never depends on a concrete runtime. VLM annotators (Gemma/Qwen)
-stay on captions: they have no stable identity metric.
+Detect (multi-face SCRFD-10G) → align (Umeyama similarity to the ArcFace
+template) → identity embedding (ArcFace R50 `w600k_r50`, 512-d, L2
+normalized) → greedy nearest-neighbor match to existing persons above cosine
+0.5, else new `Person N`. Implemented in `internal/faces` (pure-Go
+preprocessing, SCRFD decode, and alignment; `Engine` implements
+`people.Detector` over ONNX Runtime) and run as `index_faces` jobs claimed
+after embedding (`internal/worker`), enqueued on upload and for sampled
+video frames when enabled, with `db.EnsureFaceJobsForModel` at startup and
+for backfill. VLM annotators (Gemma/Qwen) stay on captions: they have no
+stable identity metric.
 
-Still planned: local ONNX detector/embedding models, download-on-first-run,
-`-enable-faces` wiring in `cmd/imgsearch`, stats-facing progress copy.
+Models: `det_10g.onnx` + `w600k_r50.onnx` from the InsightFace `buffalo_l`
+release zip, downloaded and extracted on first run into
+`./models/insightface/buffalo_l/` (`ensureDefaultFaceAssets`); custom paths
+skip downloading. The engine reuses the Parakeet ONNX Runtime library
+(`-faces-onnxruntime-lib`, falling back to `-parakeet-onnxruntime-lib`).
+AVIF files have no pure-Go decoder and are skipped, not failed.

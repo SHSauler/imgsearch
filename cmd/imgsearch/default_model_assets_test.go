@@ -229,6 +229,16 @@ func TestEnsureDefaultLlamaNativeAnnotatorAssetsForVariantRejectsUnknownVariant(
 	}
 }
 
+func TestEnsureDefaultFaceAssetsUsesCustomPathsWithoutDownload(t *testing.T) {
+	det, rec, err := ensureDefaultFaceAssets(context.Background(), "/custom/det.onnx", "/custom/rec.onnx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if det != "/custom/det.onnx" || rec != "/custom/rec.onnx" {
+		t.Fatalf("got %q %q", det, rec)
+	}
+}
+
 func TestEnsureDefaultModelAssetSkipsCustomPath(t *testing.T) {
 	tmp := t.TempDir()
 	customPath := filepath.Join(tmp, "custom.gguf")

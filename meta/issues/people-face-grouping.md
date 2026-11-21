@@ -21,8 +21,11 @@ VLM annotators stay on captions and are never used for identity. See
       (`index_faces`, `people.Detector` interface, greedy centroid match in
       `people.AssignDetections`), enqueue on upload (`EnableFaces`), backfill
       helper (`db.EnsureFaceJobsForModel`), retry allowlist + capability.
-- [ ] Local ONNX models: detector + embedding model selection, download on
-      first run, `-enable-faces` flag + startup backfill call.
+- [x] Local ONNX models: SCRFD-10G detector + ArcFace R50 recognition
+      (`internal/faces`, validated end-to-end on real photos), InsightFace
+      `buffalo_l` zip download + extract on first run, `-enable-faces` and
+      `-faces-*` flags with Parakeet library fallback, startup backfill call,
+      AVIF skip (no pure-Go decoder).
 - [x] Atelier UI: `?view=people` grid (create/rename/delete/merge, covers),
       `?view=person` detail reusing the results grid, face management
       (select, move/unassign, split into new person).

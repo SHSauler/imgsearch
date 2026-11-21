@@ -16,6 +16,7 @@ import (
 	"imgsearch/internal/annotationtext"
 	"imgsearch/internal/db"
 	"imgsearch/internal/embedder"
+	"imgsearch/internal/faces"
 	"imgsearch/internal/jobkind"
 	"imgsearch/internal/mediaops"
 	"imgsearch/internal/people"
@@ -660,6 +661,12 @@ func (q *Queue) handleIndexFacesJob(ctx context.Context, job claimedJob, absPath
 	log.Printf("worker detecting faces image id=%d", job.ImageID)
 	dets, err := q.FaceDetector.DetectFaces(ctx, absPath)
 	if err != nil {
+		if errors.Is(err, faces.ErrUnsupportedFormat) {
+			// Formats with no pure-Go decoder are skipped, not failed:
+			// retrying would never succeed.
+			log.Printf("worker skipping face detection image id=%d: %v", job.ImageID, err)
+			return jobHandlerResult{processed: true, batchProcessed: true}
+		}
 		_ = q.failOrRetry(ctx, job, err)
 		return jobHandlerResult{processed: true, skipCompletion: true}
 	}
