@@ -263,9 +263,20 @@ func TestMergeSplitReassign(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("unassign failed, nulls=%d", n)
 	}
+	// B emptied itself above, so it was auto-deleted; recreate it with a face.
+	b = create(t, h, "B")
+	f4 := addFace(t, db, 2, b.ID)
+	_ = f4
 
 	// Split f2 off A into a new person.
-	split := decode[Person](t, request(t, h, "POST", fmt.Sprintf("/api/people/%d/split", a.ID), fmt.Sprintf(`{"face_ids":[%d],"name":"Split"}`, f2), 201))
+	splitBody := decode[struct {
+		Person          Person `json:"person"`
+		DeletedSourceID *int64 `json:"deleted_source_id"`
+	}](t, request(t, h, "POST", fmt.Sprintf("/api/people/%d/split", a.ID), fmt.Sprintf(`{"face_ids":[%d],"name":"Split"}`, f2), 201))
+	split := splitBody.Person
+	if splitBody.DeletedSourceID != nil {
+		t.Fatalf("source still has faces, must not be deleted: %v", splitBody.DeletedSourceID)
+	}
 	db.QueryRow(`SELECT person_id FROM face_detections WHERE id=?`, f2).Scan(&n)
 	if int64(n) != split.ID {
 		t.Fatalf("split did not move face: person=%d want %d", n, split.ID)
@@ -280,7 +291,7 @@ func TestMergeSplitReassign(t *testing.T) {
 		t.Fatalf("merge must delete sources, persons=%d", n)
 	}
 	db.QueryRow(`SELECT COUNT(*) FROM face_detections WHERE person_id=?`, a.ID).Scan(&n)
-	if n != 2 { // f1 + f2 (f3 was unassigned)
+	if n != 3 { // f1 + f2 + f4 (f3 was unassigned)
 		t.Fatalf("merge must move faces, faces=%d", n)
 	}
 	_ = f1
@@ -320,6 +331,55 @@ func TestListFacesFiltersAndPhotoMetadata(t *testing.T) {
 		t.Fatalf("%+v", all)
 	}
 	request(t, h, "GET", "/api/faces?person_id=0", "", 400)
+}
+
+func TestEmptyPersonDeletedWhenLastFaceMovesAway(t *testing.T) {
+	db, h := setup(t)
+	a := create(t, h, "A")
+	b := create(t, h, "B")
+	f1 := addFace(t, db, 1, a.ID)
+	f2 := addFace(t, db, 2, a.ID)
+
+	// Moving one of two faces away keeps the source.
+	moved := decode[struct {
+		Face            Face   `json:"face"`
+		DeletedPersonID *int64 `json:"deleted_person_id"`
+	}](t, request(t, h, "POST", fmt.Sprintf("/api/faces/%d/reassign", f1), fmt.Sprintf(`{"person_id":%d}`, b.ID), 200))
+	if moved.Face.PersonID == nil || *moved.Face.PersonID != b.ID || moved.DeletedPersonID != nil {
+		t.Fatalf("%+v", moved)
+	}
+
+	// Moving the last face away deletes the emptied person.
+	moved = decode[struct {
+		Face            Face   `json:"face"`
+		DeletedPersonID *int64 `json:"deleted_person_id"`
+	}](t, request(t, h, "POST", fmt.Sprintf("/api/faces/%d/reassign", f2), fmt.Sprintf(`{"person_id":%d}`, b.ID), 200))
+	if moved.DeletedPersonID == nil || *moved.DeletedPersonID != a.ID {
+		t.Fatalf("%+v", moved)
+	}
+	request(t, h, "GET", fmt.Sprintf("/api/people/%d", a.ID), "", 404)
+	var persons, faces int
+	db.QueryRow(`SELECT COUNT(*) FROM persons`).Scan(&persons)
+	db.QueryRow(`SELECT COUNT(*) FROM face_detections WHERE person_id=?`, b.ID).Scan(&faces)
+	if persons != 1 || faces != 2 {
+		t.Fatalf("persons=%d faces on B=%d", persons, faces)
+	}
+
+	// Splitting every face off deletes the emptied source.
+	c := create(t, h, "C")
+	f3 := addFace(t, db, 1, c.ID)
+	splitBody := decode[struct {
+		Person          Person `json:"person"`
+		DeletedSourceID *int64 `json:"deleted_source_id"`
+	}](t, request(t, h, "POST", fmt.Sprintf("/api/people/%d/split", c.ID), fmt.Sprintf(`{"face_ids":[%d]}`, f3), 201))
+	if splitBody.DeletedSourceID == nil || *splitBody.DeletedSourceID != c.ID {
+		t.Fatalf("%+v", splitBody)
+	}
+	request(t, h, "GET", fmt.Sprintf("/api/people/%d", c.ID), "", 404)
+	db.QueryRow(`SELECT COUNT(*) FROM persons`).Scan(&persons)
+	if persons != 2 {
+		t.Fatalf("persons=%d, want B + split target", persons)
+	}
 }
 
 func TestDeletePersonUnassignsFaces(t *testing.T) {

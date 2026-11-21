@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getImage, listFaces, listPeople, reassignFace, splitPerson } from "../lib/api";
-  import { lightboxPin, refreshPeople } from "../lib/stores";
+  import { lightboxPin, refreshPeople, setPeople, setPerson } from "../lib/stores";
   import { fallbackToOriginal, mediaUrl, pinFromImage } from "../lib/utils";
   import type { FaceView, Person } from "../lib/types";
 
@@ -63,7 +63,17 @@
     pending = true;
     error = "";
     try {
-      for (const id of selected) await reassignFace(id, targetId);
+      let selfDeleted = false;
+      for (const id of selected) {
+        const res = await reassignFace(id, targetId);
+        if (res.deleted_person_id === personId) selfDeleted = true;
+      }
+      if (selfDeleted) {
+        // This person is empty and gone; back out to the grid.
+        refreshPeople();
+        setPeople();
+        return;
+      }
       await load();
       refreshPeople();
     } catch (err) {
@@ -84,8 +94,14 @@
     pending = true;
     error = "";
     try {
-      await splitPerson(personId, [...selected], trimmed || undefined);
+      const res = await splitPerson(personId, [...selected], trimmed || undefined);
       if (active) splitName = "";
+      if (res.deleted_source_id === personId) {
+        // Every face moved out: follow them to the new person.
+        refreshPeople();
+        setPerson(res.person.id);
+        return;
+      }
       await load();
       refreshPeople();
     } catch (err) {

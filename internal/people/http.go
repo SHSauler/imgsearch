@@ -248,12 +248,15 @@ func (h *Handler) splitPerson(w http.ResponseWriter, r *http.Request, id int64) 
 			return err
 		}
 	}
-	p, err := h.split(r.Context(), id, body.FaceIDs, name)
+	p, deletedSourceID, err := h.split(r.Context(), id, body.FaceIDs, name)
 	if err != nil {
 		return err
 	}
 	w.Header().Set("Location", fmt.Sprintf("/api/people/%d", p.ID))
-	httputil.WriteJSON(w, 201, p)
+	httputil.WriteJSON(w, 201, struct {
+		Person          Person `json:"person"`
+		DeletedSourceID *int64 `json:"deleted_source_id"`
+	}{p, deletedSourceID})
 	return nil
 }
 
@@ -308,10 +311,13 @@ func (h *Handler) serveFaces(w http.ResponseWriter, r *http.Request) error {
 	if body.PersonID != nil && *body.PersonID <= 0 {
 		return problem(400, "person_id must be a positive integer or null")
 	}
-	f, err := h.reassignFace(r.Context(), faceID, body.PersonID)
+	f, deletedPersonID, err := h.reassignFace(r.Context(), faceID, body.PersonID)
 	if err != nil {
 		return err
 	}
-	httputil.WriteJSON(w, 200, f)
+	httputil.WriteJSON(w, 200, struct {
+		Face            Face   `json:"face"`
+		DeletedPersonID *int64 `json:"deleted_person_id"`
+	}{f, deletedPersonID})
 	return nil
 }

@@ -369,30 +369,56 @@ FROM face_detections f JOIN images i ON i.id=f.image_id`
 	return result, rows.Err()
 }
 
-func (h *Handler) reassignFace(ctx context.Context, faceID int64, personID *int64) (Face, error) {
+func (h *Handler) reassignFace(ctx context.Context, faceID int64, personID *int64) (Face, *int64, error) {
 	var f Face
+	var from *int64
 	tx, err := h.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return f, err
+		return f, nil, err
 	}
 	defer tx.Rollback()
 	if err := tx.QueryRowContext(ctx, `SELECT id,image_id,person_id,box_x,box_y,box_w,box_h,confidence,created_at FROM face_detections WHERE id=?`, faceID).
 		Scan(&f.ID, &f.ImageID, &f.PersonID, &f.BoxX, &f.BoxY, &f.BoxW, &f.BoxH, &f.Confidence, &f.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return f, problem(404, "face not found")
+			return f, nil, problem(404, "face not found")
 		}
-		return f, err
+		return f, nil, err
 	}
+	from = f.PersonID
 	if personID != nil {
 		if _, err := getPerson(ctx, tx, *personID); err != nil {
-			return f, err
+			return f, nil, err
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE face_detections SET person_id=? WHERE id=?`, personID, faceID); err != nil {
-		return f, err
+		return f, nil, err
 	}
 	f.PersonID = personID
-	return f, tx.Commit()
+	deleted, err := deleteIfEmpty(ctx, tx, from)
+	if err != nil {
+		return f, nil, err
+	}
+	return f, deleted, tx.Commit()
+}
+
+// deleteIfEmpty removes a person left with no faces (e.g. its last face was
+// moved away) and reports its id. Manually created empty people are only
+// removed by an explicit DELETE: this runs on face-removal operations.
+func deleteIfEmpty(ctx context.Context, tx *sql.Tx, personID *int64) (*int64, error) {
+	if personID == nil {
+		return nil, nil
+	}
+	var remaining int64
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM face_detections WHERE person_id=?`, *personID).Scan(&remaining); err != nil {
+		return nil, err
+	}
+	if remaining > 0 {
+		return nil, nil
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM persons WHERE id=?`, *personID); err != nil {
+		return nil, err
+	}
+	return personID, nil
 }
 
 func (h *Handler) merge(ctx context.Context, fromIDs []int64, intoID int64) error {
@@ -434,55 +460,59 @@ func (h *Handler) merge(ctx context.Context, fromIDs []int64, intoID int64) erro
 	return tx.Commit()
 }
 
-func (h *Handler) split(ctx context.Context, id int64, faceIDs []int64, name string) (Person, error) {
+func (h *Handler) split(ctx context.Context, id int64, faceIDs []int64, name string) (Person, *int64, error) {
 	if len(faceIDs) == 0 {
-		return Person{}, problem(400, "face_ids must not be empty")
+		return Person{}, nil, problem(400, "face_ids must not be empty")
 	}
 	seen := map[int64]bool{}
 	for _, fid := range faceIDs {
 		if seen[fid] {
-			return Person{}, problem(400, "duplicate face_ids")
+			return Person{}, nil, problem(400, "duplicate face_ids")
 		}
 		seen[fid] = true
 	}
 	tx, err := h.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return Person{}, err
+		return Person{}, nil, err
 	}
 	defer tx.Rollback()
 	if _, err := getPerson(ctx, tx, id); err != nil {
-		return Person{}, err
+		return Person{}, nil, err
 	}
 	for _, fid := range faceIDs {
 		var owner sql.NullInt64
 		if err := tx.QueryRowContext(ctx, `SELECT person_id FROM face_detections WHERE id=?`, fid).Scan(&owner); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return Person{}, problem(404, "face not found")
+				return Person{}, nil, problem(404, "face not found")
 			}
-			return Person{}, err
+			return Person{}, nil, err
 		}
 		if !owner.Valid || owner.Int64 != id {
-			return Person{}, problem(409, "face does not belong to this person")
+			return Person{}, nil, problem(409, "face does not belong to this person")
 		}
 	}
 	uuid, err := newUUID()
 	if err != nil {
-		return Person{}, err
+		return Person{}, nil, err
 	}
 	var p Person
 	if err := tx.QueryRowContext(ctx, `INSERT INTO persons(uuid,name) VALUES(?,'tmp') RETURNING id,uuid,name,created_at`, uuid).Scan(&p.ID, &p.UUID, &p.Name, &p.CreatedAt); err != nil {
-		return Person{}, err
+		return Person{}, nil, err
 	}
 	if name == "" {
 		name = fmt.Sprintf("Person %d", p.ID)
 	}
 	if err := tx.QueryRowContext(ctx, `UPDATE persons SET name=? WHERE id=? RETURNING id,uuid,name,created_at`, name, p.ID).Scan(&p.ID, &p.UUID, &p.Name, &p.CreatedAt); err != nil {
-		return Person{}, err
+		return Person{}, nil, err
 	}
 	for _, fid := range faceIDs {
 		if _, err := tx.ExecContext(ctx, `UPDATE face_detections SET person_id=? WHERE id=?`, p.ID, fid); err != nil {
-			return Person{}, err
+			return Person{}, nil, err
 		}
 	}
-	return p, tx.Commit()
+	deleted, err := deleteIfEmpty(ctx, tx, &id)
+	if err != nil {
+		return Person{}, nil, err
+	}
+	return p, deleted, tx.Commit()
 }

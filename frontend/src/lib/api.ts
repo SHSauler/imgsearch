@@ -527,8 +527,13 @@ export function mergePeople(fromIds: number[], intoId: number): Promise<void> {
   return getJSON("/api/people/merge", jsonInit("POST", { from_ids: fromIds, into_id: intoId }));
 }
 
-export function splitPerson(id: number, faceIds: number[], name?: string): Promise<Person> {
+export function splitPerson(id: number, faceIds: number[], name?: string): Promise<SplitResult> {
   return getJSON(`/api/people/${id}/split`, jsonInit("POST", name === undefined ? { face_ids: faceIds } : { face_ids: faceIds, name }));
+}
+
+export interface SplitResult {
+  person: Person;
+  deleted_source_id: number | null;
 }
 
 export function listFaces(opts: { personId?: number; unassigned?: boolean; limit?: number; offset?: number; signal?: AbortSignal } = {}): Promise<{ faces: FaceView[] }> {
@@ -540,8 +545,13 @@ export function listFaces(opts: { personId?: number; unassigned?: boolean; limit
   return getJSON(`/api/faces?${params}`, { signal: opts.signal });
 }
 
-export function reassignFace(faceId: number, personId: number | null): Promise<FaceView> {
+export function reassignFace(faceId: number, personId: number | null): Promise<ReassignResult> {
   return getJSON(`/api/faces/${faceId}/reassign`, jsonInit("POST", { person_id: personId }));
+}
+
+export interface ReassignResult {
+  face: FaceView;
+  deleted_person_id: number | null;
 }
 
 /** Preview by default. Confirm only with the token from the reviewed preview. */

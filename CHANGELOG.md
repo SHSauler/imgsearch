@@ -3,6 +3,7 @@
 All notable changes to this project are tracked in this file.
 
 ## Unreleased
+- feat(people): delete people emptied by moving their last face away or splitting all faces out; reassign/split responses report the deletion and the UI navigates accordingly.
 - fix(people): show each managed face located on its full source photo with an outline box, so multi-person images are unambiguous when merging or splitting.
 - feat(people): show grouped people first on library, search, and lightbox cards: person chips link straight to that person's view. Attached with batched lookups on image, video, and search items.
 - fix(people): make face management usable: tiles crop to the detected face, fall back to the original photo when thumbnails fail, and show each face's source filename, date, and match score with an open-photo action plus face/photo/selection counts.
