@@ -384,7 +384,10 @@ export interface FaceView {
   box_h: number;
   confidence: number;
   created_at: string;
+  original_name: string;
+  storage_path: string;
   thumbnail_path?: string;
+  captured_at?: string;
 }
 
 export interface DuplicateConsolidationRequest {

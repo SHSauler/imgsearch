@@ -286,6 +286,42 @@ func TestMergeSplitReassign(t *testing.T) {
 	_ = f1
 }
 
+func TestListFacesFiltersAndPhotoMetadata(t *testing.T) {
+	db, h := setup(t)
+	a := create(t, h, "A")
+	f1 := addFace(t, db, 1, a.ID)
+	f2 := addFace(t, db, 3, nil) // unassigned frame face (video 1)
+
+	inPerson := decode[struct {
+		Faces []FaceView `json:"faces"`
+	}](t, request(t, h, "GET", fmt.Sprintf("/api/faces?person_id=%d", a.ID), "", 200))
+	if len(inPerson.Faces) != 1 || inPerson.Faces[0].ID != f1 {
+		t.Fatalf("%+v", inPerson)
+	}
+	face := inPerson.Faces[0]
+	if face.OriginalName != "one.jpg" || face.StoragePath != "images/one.jpg" || face.ImageID != 1 {
+		t.Fatalf("missing photo metadata: %+v", face)
+	}
+	if face.BoxW <= 0 || face.BoxH <= 0 || face.Confidence <= 0 {
+		t.Fatalf("missing geometry: %+v", face)
+	}
+
+	unassigned := decode[struct {
+		Faces []FaceView `json:"faces"`
+	}](t, request(t, h, "GET", "/api/faces?unassigned=true", "", 200))
+	if len(unassigned.Faces) != 1 || unassigned.Faces[0].ID != f2 {
+		t.Fatalf("%+v", unassigned)
+	}
+
+	all := decode[struct {
+		Faces []FaceView `json:"faces"`
+	}](t, request(t, h, "GET", "/api/faces", "", 200))
+	if len(all.Faces) != 2 {
+		t.Fatalf("%+v", all)
+	}
+	request(t, h, "GET", "/api/faces?person_id=0", "", 400)
+}
+
 func TestDeletePersonUnassignsFaces(t *testing.T) {
 	db, h := setup(t)
 	a := create(t, h, "A")

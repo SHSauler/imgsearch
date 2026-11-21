@@ -40,10 +40,15 @@ type Face struct {
 	CreatedAt  string  `json:"created_at"`
 }
 
-// FaceView is a Face joined with its image thumbnail for correction UIs.
+// FaceView is a Face joined with its source image for correction UIs.
+// (Face.CreatedAt is the detection time; CapturedAt is the photo's
+// capture/upload time.)
 type FaceView struct {
 	Face
+	OriginalName  string `json:"original_name"`
+	StoragePath   string `json:"storage_path"`
 	ThumbnailPath string `json:"thumbnail_path,omitempty"`
+	CapturedAt    string `json:"captured_at,omitempty"`
 }
 
 type Item struct {
@@ -330,7 +335,8 @@ WHERE `+visible+` ORDER BY r.last_fid DESC LIMIT ? OFFSET ?`, id, limit, offset)
 
 func (h *Handler) listFaces(ctx context.Context, personID *int64, unassignedOnly bool, limit, offset int) ([]FaceView, error) {
 	query := `
-SELECT f.id,f.image_id,f.person_id,f.box_x,f.box_y,f.box_w,f.box_h,f.confidence,f.created_at,i.thumbnail_path
+SELECT f.id,f.image_id,f.person_id,f.box_x,f.box_y,f.box_w,f.box_h,f.confidence,f.created_at,
+  i.original_name,i.storage_path,i.thumbnail_path,COALESCE(i.captured_at,i.created_at,'')
 FROM face_detections f JOIN images i ON i.id=f.image_id`
 	var args []any
 	switch {
@@ -351,7 +357,8 @@ FROM face_detections f JOIN images i ON i.id=f.image_id`
 	for rows.Next() {
 		var v FaceView
 		var thumb sql.NullString
-		if err := rows.Scan(&v.ID, &v.ImageID, &v.PersonID, &v.BoxX, &v.BoxY, &v.BoxW, &v.BoxH, &v.Confidence, &v.CreatedAt, &thumb); err != nil {
+		if err := rows.Scan(&v.ID, &v.ImageID, &v.PersonID, &v.BoxX, &v.BoxY, &v.BoxW, &v.BoxH, &v.Confidence, &v.CreatedAt,
+			&v.OriginalName, &v.StoragePath, &thumb, &v.CapturedAt); err != nil {
 			return nil, err
 		}
 		if thumb.Valid {
