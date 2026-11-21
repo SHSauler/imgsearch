@@ -3,6 +3,7 @@
 All notable changes to this project are tracked in this file.
 
 ## Unreleased
+- fix(people): show each managed face located on its full source photo with an outline box, so multi-person images are unambiguous when merging or splitting.
 - feat(people): show grouped people first on library, search, and lightbox cards: person chips link straight to that person's view. Attached with batched lookups on image, video, and search items.
 - fix(people): make face management usable: tiles crop to the detected face, fall back to the original photo when thumbnails fail, and show each face's source filename, date, and match score with an open-photo action plus face/photo/selection counts.
 - feat(people): add local ONNX face backend: SCRFD-10G detection + ArcFace R50 identity embeddings (`internal/faces`, pure-Go preprocessing/decode/alignment, validated end-to-end on real photos), InsightFace `buffalo_l` download + extract on first run, `-enable-faces` / `-faces-*` flags with Parakeet library fallback, startup backfill, AVIF skip.

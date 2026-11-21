@@ -108,15 +108,10 @@
     }
   }
 
-  /** Padded face crop for object-view-box (inset = top right bottom left). */
-  function cropStyle(face: FaceView): string {
-    const pad = 0.25;
-    const x0 = Math.max(0, face.box_x - face.box_w * pad);
-    const y0 = Math.max(0, face.box_y - face.box_h * pad);
-    const x1 = Math.min(1, face.box_x + face.box_w * (1 + pad));
-    const y1 = Math.min(1, face.box_y + face.box_h * (1 + pad));
-    const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
-    return `object-view-box: inset(${pct(y0)} ${pct(1 - x1)} ${pct(1 - y1)} ${pct(x0)});`;
+  /** Padded face box as CSS percentages for the location outline. */
+  function boxStyle(face: FaceView): string {
+    const pct = (v: number) => `${(v * 100).toFixed(2)}%`;
+    return `left:${pct(face.box_x)};top:${pct(face.box_y)};width:${pct(face.box_w)};height:${pct(face.box_h)};`;
   }
 
   function faceLabel(face: FaceView): string {
@@ -159,14 +154,20 @@
             class="block w-full rounded-lg overflow-hidden border-2 cursor-pointer p-0 bg-surface-2 {selected.has(face.id) ? 'border-accent' : 'border-transparent'}"
           >
             {#if src}
-              <img
-                src={src}
-                alt=""
-                loading="lazy"
-                onerror={(event) => fallbackToOriginal(event.currentTarget, original)}
-                style={cropStyle(face)}
-                class="block w-full aspect-square object-cover"
-              />
+              <span class="relative block w-full">
+                <img
+                  src={src}
+                  alt=""
+                  loading="lazy"
+                  onerror={(event) => fallbackToOriginal(event.currentTarget, original)}
+                  class="block w-full h-auto"
+                />
+                <span
+                  aria-hidden="true"
+                  style={boxStyle(face)}
+                  class="absolute border-[3px] border-accent rounded-[4px] shadow-[0_0_0_1px_rgba(0,0,0,0.55),0_0_12px_rgba(0,0,0,0.45)] pointer-events-none"
+                ></span>
+              </span>
             {:else}
               <span class="grid place-items-center w-full aspect-square text-muted-2 text-sm">—</span>
             {/if}
