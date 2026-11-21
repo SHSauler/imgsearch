@@ -358,7 +358,7 @@ func extractZipMembers(zipPath string, dir string, want map[string]string) error
 		if !ok || member.FileInfo().IsDir() {
 			continue
 		}
-		if dest != filepath.Join(dir, filepath.Base(dest)) {
+		if filepath.Clean(dest) != filepath.Join(dir, filepath.Base(dest)) {
 			return fmt.Errorf("refusing face model path %q", dest)
 		}
 		src, err := member.Open()
