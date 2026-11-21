@@ -346,6 +346,47 @@ export interface CollectionItemsPage {
   item_count: number;
 }
 
+export interface Person {
+  id: number;
+  uuid: string;
+  name: string;
+  created_at: string;
+}
+
+export interface PersonCover {
+  image_id: number;
+  thumbnail_path?: string;
+}
+
+/** Index-only summary; detail and CRUD continue to use basic Person. */
+export interface PersonSummary extends Person {
+  face_count: number;
+  covers: PersonCover[];
+}
+
+export type PersonItem =
+  | { media_type: "image"; image: ImageRecord }
+  | { media_type: "video"; video: VideoRecord };
+
+export interface PersonItemsPage {
+  items: PersonItem[];
+  total: number;
+  item_count: number;
+}
+
+export interface FaceView {
+  id: number;
+  image_id: number;
+  person_id: number | null;
+  box_x: number;
+  box_y: number;
+  box_w: number;
+  box_h: number;
+  confidence: number;
+  created_at: string;
+  thumbnail_path?: string;
+}
+
 export interface DuplicateConsolidationRequest {
   keeper_id: number;
   group_ids: number[];
