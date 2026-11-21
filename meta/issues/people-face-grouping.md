@@ -17,10 +17,12 @@ VLM annotators stay on captions and are never used for identity. See
 - [x] `GET /api/people/{id}/items`: deduplicated media, newest-face-first,
       NSFW-filtered before pagination; frame faces surface as videos.
 - [x] Corrections: merge, split, face reassign/unassign, unassigned pool.
-- [ ] Worker: face detection + identity embedding + auto-cluster job kind
-      (`index_faces`), enqueue on upload, backfill at startup.
+- [x] Worker: face detection + identity embedding + auto-cluster job kind
+      (`index_faces`, `people.Detector` interface, greedy centroid match in
+      `people.AssignDetections`), enqueue on upload (`EnableFaces`), backfill
+      helper (`db.EnsureFaceJobsForModel`), retry allowlist + capability.
 - [ ] Local ONNX models: detector + embedding model selection, download on
-      first run, `-enable-faces` flag, capability-gated retry.
+      first run, `-enable-faces` flag + startup backfill call.
 - [ ] Atelier UI: `?view=people` grid, person detail, rename/merge/split/
       reassign, face-box toggle in lightbox, multi-face badges.
 - [ ] Docs/changelog follow-ups per commit.

@@ -137,7 +137,7 @@ export interface BuildInfo {
 export type CapabilityState = "configured" | "disabled" | "unconfigured" | "unknown";
 
 export interface StatsResponse {
-  capabilities?: { worker: "local" | "unknown"; annotations: CapabilityState; transcription: CapabilityState };
+  capabilities?: { worker: "local" | "unknown"; annotations: CapabilityState; transcription: CapabilityState; faces?: CapabilityState };
   video_transcription_empty?: number;
   build?: BuildInfo;
   images_total: number;

@@ -37,11 +37,17 @@ All routes use the existing `/api/` authentication and JSON error format.
 Face creation belongs to the background detection worker (planned); the API
 only clusters, corrects, and reads.
 
-## Pipeline (planned)
+## Pipeline (worker: done, models: planned)
 
 Detect (multi-face, e.g. SCRFD-class) → align → identity embedding (ArcFace
 class, 512-d) → greedy nearest-neighbor match to existing persons above a
-cosine threshold, else new `Person N`. Runs as a new `index_faces` job kind
-after embedding, on image rows and sampled video frames, via the existing
-ONNX Runtime dependency. VLM annotators (Gemma/Qwen) stay on captions: they
-have no stable identity metric.
+cosine threshold, else new `Person N`. Implemented as `index_faces` jobs
+claimed after embedding (`internal/worker`, `Queue.FaceDetector`), enqueued
+on upload and for sampled video frames when enabled, with
+`db.EnsureFaceJobsForModel` for backfill; matching lives in
+`people.AssignDetections` behind the `people.Detector` interface so the
+worker never depends on a concrete runtime. VLM annotators (Gemma/Qwen)
+stay on captions: they have no stable identity metric.
+
+Still planned: local ONNX detector/embedding models, download-on-first-run,
+`-enable-faces` wiring in `cmd/imgsearch`, stats-facing progress copy.
