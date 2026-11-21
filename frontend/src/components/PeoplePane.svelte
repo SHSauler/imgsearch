@@ -3,7 +3,7 @@
   import { get } from "svelte/store";
   import { createPerson, deletePerson, listPersonSummaries, mergePeople, renamePerson } from "../lib/api";
   import { includeNSFW, personEpoch, refreshPeople, setPerson } from "../lib/stores";
-  import { personFacesLabel } from "../lib/personPresentation";
+  import { canMergePeople, personFacesLabel } from "../lib/personPresentation";
   import type { Person, PersonSummary } from "../lib/types";
   import CollectionCovers from "./CollectionCovers.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
@@ -19,6 +19,9 @@
   let managing = $state<number | null>(null);
   let merging = $state<number | null>(null);
   let mergeTarget = $state("");
+  let dragSource = $state<number | null>(null);
+  let dropTarget = $state<number | null>(null);
+  let mergeConfirm = $state<{ from: PersonSummary; into: PersonSummary } | null>(null);
   let active = true;
   let request = 0;
   let controller: AbortController | undefined;
@@ -138,20 +141,56 @@
   }
   async function confirmMerge(id: number) {
     const target = Number(mergeTarget);
-    if (!Number.isSafeInteger(target) || target <= 0 || target === id) {
+    if (!canMergePeople(id, target)) {
       error = "Choose another person to merge into.";
       return;
     }
+    await doMerge(id, target);
+    if (active) merging = null;
+  }
+  async function doMerge(fromId: number, intoId: number) {
     pending = true;
     error = "";
     try {
-      await mergePeople([id], target);
-      if (active) { merging = null; refreshPeople(); }
+      await mergePeople([fromId], intoId);
+      if (active) refreshPeople();
     } catch (err) {
       if (active) error = err instanceof Error ? err.message : "Could not merge people";
     } finally {
       if (active) pending = false;
     }
+  }
+  function onCardDragStart(id: number, event: DragEvent) {
+    if (pending || !event.dataTransfer) return;
+    dragSource = id;
+    dropTarget = null;
+    event.dataTransfer.setData("text/plain", String(id));
+    event.dataTransfer.effectAllowed = "move";
+  }
+  function onCardDragOver(id: number, event: DragEvent) {
+    if (dragSource === null || !canMergePeople(dragSource, id) || !event.dataTransfer) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    dropTarget = id;
+  }
+  function onCardDragLeave(id: number, event: DragEvent) {
+    const to = event.relatedTarget;
+    if (to instanceof Node && event.currentTarget instanceof Node && event.currentTarget.contains(to)) return;
+    if (dropTarget === id) dropTarget = null;
+  }
+  function onCardDrop(id: number, event: DragEvent) {
+    event.preventDefault();
+    const from = dragSource;
+    dragSource = null;
+    dropTarget = null;
+    if (from === null || !canMergePeople(from, id)) return;
+    const source = visiblePeople.find((p) => p.id === from);
+    const target = visiblePeople.find((p) => p.id === id);
+    if (source && target) mergeConfirm = { from: source, into: target };
+  }
+  function onCardDragEnd() {
+    dragSource = null;
+    dropTarget = null;
   }
   const button = "px-3 py-2 border border-line rounded-lg cursor-pointer disabled:opacity-50";
 </script>
@@ -159,7 +198,7 @@
 <svelte:window onkeydown={onKey} onclick={onClick} />
 
 <section data-people-pane class="px-5 sm:px-9 py-5 max-w-5xl w-full">
-  <p class="text-muted mb-4">Faces grouped automatically across your library. Rename people, merge duplicates, or open one to browse every photo and video they appear in.</p>
+  <p class="text-muted mb-4">Faces grouped automatically across your library. Rename people, merge duplicates, or open one to browse every photo and video they appear in. Tip: drag one person onto another to merge them.</p>
   <form onsubmit={create} class="flex flex-wrap items-center gap-2">
     <input aria-label="Person name" placeholder="Person name (blank for automatic)" bind:value={newName} disabled={pending} class="min-w-0 flex-1 px-3 py-2 bg-surface border border-line-2 rounded-lg" />
     <button type="submit" disabled={pending} class="px-3 py-2 bg-ink text-white rounded-lg cursor-pointer disabled:opacity-50">{pending ? "Saving…" : "Add person"}</button>
@@ -169,7 +208,17 @@
   {#if !loading && !error && visiblePeople.length === 0}<p class="mt-4 text-muted">No people yet. Face grouping runs in the background after indexing.</p>{/if}
   <ul class="list-none p-0 mt-5 grid md:grid-cols-2 gap-3">
     {#each visiblePeople as person (person.id)}
-      <li data-person-card={person.id} class="relative min-w-0 bg-surface border border-line rounded-card flex items-stretch">
+      <li
+        data-person-card={person.id}
+        data-person-drop={dropTarget === person.id ? "true" : undefined}
+        draggable={!pending && renaming === null && merging === null}
+        ondragstart={(event) => onCardDragStart(person.id, event)}
+        ondragover={(event) => onCardDragOver(person.id, event)}
+        ondragleave={(event) => onCardDragLeave(person.id, event)}
+        ondrop={(event) => onCardDrop(person.id, event)}
+        ondragend={onCardDragEnd}
+        class="relative min-w-0 bg-surface border rounded-card flex items-stretch {dropTarget === person.id ? 'border-accent shadow-elev outline outline-2 outline-accent/60' : 'border-line'}"
+      >
         {#if renaming === person.id}
           <div class="p-4 min-w-0 w-full">
             <form onsubmit={(e) => { e.preventDefault(); void saveRename(person.id); }} class="flex flex-wrap items-center gap-2">
@@ -217,4 +266,14 @@
 </section>
 {#if deleting}
   <ConfirmDialog title="Delete person?" detail={deleting.name} note="Only the grouping will be removed. Faces stay unassigned and original media stays in your library." confirmLabel="Delete person" onconfirm={() => void remove()} oncancel={() => deleting = null} />
+{/if}
+{#if mergeConfirm}
+  <ConfirmDialog
+    title="Merge people?"
+    detail={`${mergeConfirm.from.name} → ${mergeConfirm.into.name}`}
+    note={`All faces move to ${mergeConfirm.into.name}. ${mergeConfirm.from.name} will be deleted. This cannot be undone.`}
+    confirmLabel="Merge"
+    onconfirm={() => { const pair = mergeConfirm; mergeConfirm = null; if (pair) void doMerge(pair.from.id, pair.into.id); }}
+    oncancel={() => mergeConfirm = null}
+  />
 {/if}

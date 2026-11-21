@@ -3,6 +3,7 @@
 All notable changes to this project are tracked in this file.
 
 ## Unreleased
+- feat(people): drag-and-drop merging on the People page: drop one person onto another, confirm, and the faces move over. Touch users keep the Manage → Merge into… flow.
 - feat(people): delete people emptied by moving their last face away or splitting all faces out; reassign/split responses report the deletion and the UI navigates accordingly.
 - fix(people): show each managed face located on its full source photo with an outline box, so multi-person images are unambiguous when merging or splitting.
 - feat(people): show grouped people first on library, search, and lightbox cards: person chips link straight to that person's view. Attached with batched lookups on image, video, and search items.

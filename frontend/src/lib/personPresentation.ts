@@ -2,6 +2,15 @@ export function personFacesLabel(faceCount: number): string {
   return `${faceCount.toLocaleString()} ${faceCount === 1 ? "face" : "faces"}`;
 }
 
+/** Drag-and-drop merge is only valid between two different people. */
+export function canMergePeople(sourceId: number, targetId: number): boolean {
+  return (
+    Number.isSafeInteger(sourceId) && sourceId > 0 &&
+    Number.isSafeInteger(targetId) && targetId > 0 &&
+    sourceId !== targetId
+  );
+}
+
 export function personItemsPresentation(itemCount: number, visibleCount: number): {
   count: string;
   message: string;
