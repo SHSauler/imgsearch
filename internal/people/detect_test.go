@@ -86,6 +86,20 @@ func TestAssignDetectionsCreatesAndMatchesPersons(t *testing.T) {
 	if matchedID != firstID {
 		t.Fatalf("same identity must reuse person %d, got %d", firstID, matchedID)
 	}
+
+	// Re-running the same image replaces its faces instead of duplicating.
+	if err := AssignDetections(ctx, db, 1, []Detection{
+		{Confidence: 0.9, Embedding: unit(4, 0)},
+	}, 0.5); err != nil {
+		t.Fatal(err)
+	}
+	var faces int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM face_detections WHERE image_id=1`).Scan(&faces); err != nil {
+		t.Fatal(err)
+	}
+	if faces != 1 {
+		t.Fatalf("re-run must replace faces, got %d rows", faces)
+	}
 }
 
 func TestAssignDetectionsRejectsBadInput(t *testing.T) {

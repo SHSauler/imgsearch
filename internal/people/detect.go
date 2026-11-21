@@ -68,6 +68,8 @@ func normalize(v []float32) []float32 {
 // each detection joins the person whose embedding centroid is most similar
 // above threshold, otherwise it founds a new neutral person. Detections are
 // matched in order, so later faces in the same image see earlier ones.
+// Re-running for an image replaces its faces, so crashed jobs can safely
+// retry without duplicating rows.
 func AssignDetections(ctx context.Context, db *sql.DB, imageID int64, dets []Detection, threshold float64) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
@@ -96,6 +98,11 @@ func AssignDetections(ctx context.Context, db *sql.DB, imageID int64, dets []Det
 		return err
 	}
 	defer tx.Rollback()
+
+	// Idempotent re-runs: a retried job replaces this image's faces.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM face_detections WHERE image_id=?`, imageID); err != nil {
+		return err
+	}
 
 	type centroid struct {
 		personID int64
