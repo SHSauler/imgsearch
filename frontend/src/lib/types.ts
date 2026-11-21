@@ -23,6 +23,12 @@ export interface ImageRecord {
   description?: string;
   full_description?: string;
   tags?: string[];
+  people: PersonRef[];
+}
+
+export interface PersonRef {
+  id: number;
+  name: string;
 }
 
 export interface VideoRecord extends ImageRecord {
@@ -54,6 +60,7 @@ export interface SearchResult {
   description?: string;
   full_description?: string;
   tags?: string[];
+  people: PersonRef[];
   is_anchor?: boolean;
   /** Tag-based searches set this to "tag" so the UI can suppress similarity badges. */
   search_source?: "tag" | "embedding" | string;
@@ -191,6 +198,7 @@ export interface Pin {
   fullDescription?: string;
   filename: string;
   tags: string[];
+  people: PersonRef[];
   /** 0-1 similarity (1 - distance) when this pin came from a search result. */
   matchScore?: number;
   /** Raw backend vector distance; lower is closer. Used for Feed reranking. */
